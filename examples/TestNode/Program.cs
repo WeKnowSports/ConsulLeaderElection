@@ -15,9 +15,12 @@ namespace TestNode
             var config = ElectionMonitorConfig.Default(serviceName: "test_node", client: consulClient);
 
             //var config = new ElectionMonitorConfig(
-            //    serviceName: "test_node",
-            //    tryLockInterval: TimeSpan.FromSeconds(5),
-            //    sessionTTL: TimeSpan.FromSeconds(20),
+            //    lockOptions: new LockOptions(key: "services/MyServiceName/leader")
+            //    {
+            //        SessionTTL = TimeSpan.FromSeconds(20),
+            //        SessionName = "lock session for 'MyServiceName'"                    
+            //    },
+            //    tryLockInterval: TimeSpan.FromSeconds(5),                
             //    client: consulClient
             //);
 

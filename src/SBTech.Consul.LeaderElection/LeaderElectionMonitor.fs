@@ -5,16 +5,21 @@ open System.Timers
 open Consul
 
 type ElectionMonitorConfig = {
-    ServiceName: string
-    TryLockInterval: TimeSpan
-    SessionTTL: TimeSpan
+    LockOptions: LockOptions
+    TryLockInterval: TimeSpan    
     Client: ConsulClient
 }
   with
   static member Default(serviceName, client) =
-      { ServiceName     = serviceName
-        TryLockInterval = TimeSpan.FromSeconds(3.)
-        SessionTTL      = TimeSpan.FromSeconds(10.)
+      let key = sprintf "services/%s/leader" serviceName      
+      let lockOptions = LockOptions(key)      
+      lockOptions.SessionName  <- "lock session for " + serviceName
+      lockOptions.SessionTTL   <- TimeSpan.FromSeconds(10.)
+      lockOptions.LockWaitTime <- TimeSpan.FromSeconds(1.)
+      lockOptions.LockTryOnce  <- true
+      
+      { LockOptions     = lockOptions        
+        TryLockInterval = TimeSpan.FromSeconds(3.)        
         Client          = client }
 
 type ElectionArgs = { IsLeader: bool }
@@ -23,15 +28,11 @@ type LeaderElectionMonitor(config) as x =
     
     let mutable isLeader = false
     let mutable currentLock = Option<IDistributedLock>.None
-    let lockOptions   = LockOptions(key = sprintf "services/%s/leader" config.ServiceName)
+    let lockOptions   = config.LockOptions
     let leaderChanged = Event<ElectionArgs>()
     let tryLockTimer  = new Timer(config.TryLockInterval.TotalMilliseconds)
 
-    do lockOptions.SessionName  <- "lock session for " + config.ServiceName
-       lockOptions.SessionTTL   <- config.SessionTTL              
-       lockOptions.LockWaitTime <- TimeSpan.FromSeconds(1.)
-       lockOptions.LockTryOnce  <- true
-       tryLockTimer.Elapsed.Add(fun _ -> x.TryLock() |> Async.RunSynchronously)
+    do tryLockTimer.Elapsed.Add(fun _ -> x.TryLock() |> Async.RunSynchronously)
 
     [<CLIEvent>]
     member x.LeaderChanged = leaderChanged.Publish    

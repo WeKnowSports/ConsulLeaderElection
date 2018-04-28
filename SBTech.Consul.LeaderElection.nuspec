@@ -1,15 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
-    <id>SBTech.Consul.LeaderElection</id>
+    <id>SBTech.Consul.LeaderElection</id>	
     <version>0.1.0</version>
+	<title>Consul Leader Election</title>
     <authors>AntyaDev</authors>
     <owners>SBTech</owners>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <licenseUrl>https://github.com/WeKnowSports/ConsulLeaderElection/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/WeKnowSports/ConsulLeaderElection</projectUrl>
     <iconUrl>https://avatars3.githubusercontent.com/u/17160784?v=3&amp;amp;s=200</iconUrl>
-    <description>Package Description</description>
+	<description>Simple library(100% written in F#) to use leader election functionality based on Consul.</description>    
     <copyright>SBTech Copyright © 2018</copyright>
     <tags>consul, leader-election</tags>
     <dependencies>

@@ -1,6 +1,6 @@
 # Consul Leader Election
 
-Simple library to use leader election functionality based on Consul. Fully written in F#.
+Simple library(100% written in F#) to use leader election functionality based on Consul.
 
 ## Leader election to do distributed locking
 Leader election is really quite a simple concept. The service nodes register against a host using a specific common key. One of the nodes is elected leader and performs the job, while the other ones are idle. This lock to a specific node is held as long as the node's session remains in the host's store. When the node's session is gone, the leadership is open for taking by the next node that checks for it. Every time the nodes are scheduled to run their task, this check is performed. 

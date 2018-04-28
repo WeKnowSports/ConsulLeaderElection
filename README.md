@@ -3,7 +3,7 @@
 Simple library(100% written in F#) to use leader election functionality based on Consul.
 
 ## Leader election to do distributed locking
-Leader election is quite a simple concept. The service nodes register against a host using a specific common key. One of the nodes is elected leader and performs the job, while the other ones are idle. This lock to a specific node is held as long as the node's session remains in the host's store. When the node's session is gone, the leadership is open for taking by the next node that checks for it. Every time the nodes are scheduled to run their task, this check is performed. 
+Leader election is quite a simple concept. The service nodes are registered against a host using a specific common key. Usually key format is "services/Your_Service_Name/leader". One of the nodes is elected as a leader and performs the job, while the other ones are being idle. This lock to a specific node is held as long as the session of the node remains on the host. When the session is gone, the leadership is open for taking by the next node that checks for it. 
 
 ## How to install
 To install Consul Leader Election via NuGet, run this command in NuGet package manager console:

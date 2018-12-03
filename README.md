@@ -26,5 +26,19 @@ electionMonitor.LeaderChanged += (s, e) =>
     else
         Console.WriteLine($"[Slave] at {DateTime.Now.ToString("hh:mm:ss")}");
 };
+
+var joinedCluster = electionMonitor.Start().Wait(timeout: TimeSpan.FromSeconds(30));
+if (joinedCluster)
+{
+    if (electionMonitor.IsLeader)
+        Console.WriteLine($"Joined cluster as [Master] at {DateTime.Now.ToString("hh:mm:ss")}");
+    else
+        Console.WriteLine($"Joined cluster as [Slave] at {DateTime.Now.ToString("hh:mm:ss")}");
+}
+else
+{
+    Console.WriteLine($"TestNode failed to join cluster at {DateTime.Now.ToString("hh:mm:ss")}");
+}
+
 electionMonitor.Start();
 ```

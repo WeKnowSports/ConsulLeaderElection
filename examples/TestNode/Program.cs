@@ -35,7 +35,7 @@ namespace TestNode
             //        // is allowing to try acquire lock only one time in one round
             //        // basically if LockTryOnce == false then 
             //        // electionMonitor.Start() will not exit until you acquire the lock                    
-            //        LockTryOnce = false // default is true
+            //        LockTryOnce = true // default is true
             //    }                
             //);
 

@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
     <id>SBTech.Consul.LeaderElection</id>	
-    <version>0.2.0</version>
+    <version>0.3.0</version>
 	<title>Consul Leader Election</title>
     <authors>AntyaDev</authors>
     <owners>SBTech</owners>

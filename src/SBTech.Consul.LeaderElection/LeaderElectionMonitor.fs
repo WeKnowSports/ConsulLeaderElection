@@ -1,11 +1,8 @@
 namespace rec SBTech.Consul.LeaderElection
 
 open System
-open System.Timers
-
-open System.Diagnostics
 open System.Threading
-open System.Threading.Tasks
+
 open Consul
 open FSharp.Control.Tasks.V2.ContextInsensitive
 
@@ -122,7 +119,7 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig) =
             tryLockTimer.Stop()
  
             match currentSession with
-            | Some s -> let! released = tryReleaseLock(config.Client, s.SessionId, config.LockOptions) // Ensure that we released lock first
+            | Some s -> let! released = tryReleaseLock(config.Client, s.SessionId, config.LockOptions) // Ensure that we released the lock first
                         cancelationTokenSrc.Cancel(false)
                         let! destroyed =  tryDestroySession(config.Client, s.SessionId)
                         sprintf "LeaderElectionMonitor stopped. lock released : %b, session destroyed: %b" released destroyed |>  System.Diagnostics.Trace.TraceInformation 

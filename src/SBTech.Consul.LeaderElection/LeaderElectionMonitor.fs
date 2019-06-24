@@ -19,8 +19,7 @@ type ElectionMonitorConfig = {
       let sessionOptions = SessionEntry()      
       sessionOptions.Name   <- "lock session for " + serviceName
       sessionOptions.TTL    <- Nullable<TimeSpan>(TimeSpan.FromSeconds(10.))
-      sessionOptions.Behavior <- SessionBehavior.Release 
-      sessionOptions.LockDelay <- Nullable<TimeSpan>(TimeSpan.FromSeconds(1.))
+      sessionOptions.Behavior <- SessionBehavior.Release       
       { Client          = client 
         SessionOptions = sessionOptions                
         LockOptions    = lockOpts

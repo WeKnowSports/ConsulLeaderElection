@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Threading;
 using Consul;
 using SBTech.Consul.LeaderElection;
 
@@ -8,36 +10,21 @@ namespace TestNode
     {
         static void Main(string[] args)
         {
-            var consulClient = new ConsulClient(); // using http://localhost:8500
+            Trace.Listeners.Add(new TextWriterTraceListener(Console.Out));
+            
+            var consulClient = new ConsulClient();
 
             var config = ElectionMonitorConfig.Default(serviceName: "test_node", client: consulClient);
 
-            //var config = new ElectionMonitorConfig(
-            //    client: consulClient,
-            //    lockOptions: new LockOptions(key: "services/MyServiceName/leader")
-            //    {
-            //        SessionName = "lock session for 'MyServiceName'",
-
-            //        // specifies the number of seconds (between 10s and 86400s).
-            //        // if provided, the session is invalidated if it is not renewed before the TTL expires.
-            //        // The lowest practical TTL should be used to keep the number of managed sessions low.
-            //        SessionTTL = TimeSpan.FromSeconds(10), // min is 10 sec
-
-            //        // is how long we block for at a time to check if lock acquisition is possible.
-            //        // This affects the minimum time it takes to cancel a Lock acquisition.
-            //        LockWaitTime = TimeSpan.FromSeconds(5), // default is 5 sec
-
-            //        // is how long we wait after a failed lock acquisition before attempting
-            //        // to do the lock again. This is so that once a lock-delay is in effect, we do not hot loop
-            //        // retrying the acquisition.
-            //        LockRetryTime = TimeSpan.FromSeconds(5), // default is 5 sec
-
-            //        // is allowing to try acquire lock only one time in one round
-            //        // basically if LockTryOnce == false then 
-            //        // electionMonitor.Start() will not exit until you acquire the lock                    
-            //        LockTryOnce = true // default is true
-            //    }                
-            //);
+//            var config = new ElectionMonitorConfig(
+//                // Parameters are described here https://github.com/PlayFab/consuldotnet                 
+//                client: consulClient,
+//                sessionOptions: new SessionEntry(), 
+//                lockOptions: new KVPair("key"),
+//
+//                //How often to try to acquire a lock
+//                tryAcquireLockInterval: TimeSpan.FromSeconds(1)
+//            );
 
             var electionMonitor = new LeaderElectionMonitor(config);
             electionMonitor.LeaderChanged += (s, e) =>

@@ -1,77 +1,101 @@
 namespace rec SBTech.Consul.LeaderElection
 
 open System
-open System.Timers
+open System.Threading
 
 open Consul
 open FSharp.Control.Tasks.V2.ContextInsensitive
 
 type ElectionMonitorConfig = {
     Client: ConsulClient
-    LockOptions: LockOptions        
+    SessionOptions: SessionEntry
+    LockOptions: KVPair
+    TryAcquireLockInterval: TimeSpan
 }
   with
   static member Default(serviceName, client) =
-      let key = sprintf "services/%s/leader" serviceName      
-      let lockOptions = LockOptions(key)      
-      lockOptions.SessionName   <- "lock session for " + serviceName
-      lockOptions.SessionTTL    <- TimeSpan.FromSeconds(10.)
-      lockOptions.LockWaitTime  <- TimeSpan.FromSeconds(5.)
-      lockOptions.LockRetryTime <- TimeSpan.FromSeconds(5.)
-      lockOptions.LockTryOnce   <- true
+      let key = sprintf "services/%s/leader" serviceName
+      let lockOpts = KVPair(key)
+      let sessionOptions = SessionEntry()      
+      sessionOptions.Name   <- "lock session for " + serviceName
+      sessionOptions.TTL    <- Nullable<TimeSpan>(TimeSpan.FromSeconds(10.))
+      sessionOptions.Behavior <- SessionBehavior.Release       
+      { Client          = client 
+        SessionOptions = sessionOptions                
+        LockOptions    = lockOpts
+        TryAcquireLockInterval = TimeSpan.FromSeconds(3.0)}
       
-      { LockOptions     = lockOptions        
-        Client          = client }
-
 type ElectionArgs = { IsLeader: bool }
 
-type LeaderElectionMonitor(config) =
+type Session = {
+    SessionId     : string;
+    RenewalWorker : Tasks.Task
+}
+ with
+ static member internal Create(c: ConsulClient, sessionOptions: SessionEntry, ct: CancellationToken) = task {
+    let! r = c.Session.Create(sessionOptions, ct)
+
+    let sessionId = r.Response
+
+    let worker = c.Session.RenewPeriodic(sessionOptions.TTL.Value, sessionId, ct)
+                          .ContinueWith(fun t -> if t.IsFaulted then
+                                                    sprintf "Session autorenewal crashed. %s" (t.Exception.ToString())
+                                                    |> System.Diagnostics.Trace.TraceError)
+
+    return { SessionId = sessionId; RenewalWorker = worker}
+}
+      
+      
+type LeaderElectionMonitor(config: ElectionMonitorConfig) =
     
-    let mutable isLeader  = false
+    let tryDestroySession(c: ConsulClient, sessionId: string) = task {
+        let! isSessionDestroyed = c.Session.Destroy(sessionId)
+        return isSessionDestroyed.Response
+    }
+    
+    let tryReleaseLock(c: ConsulClient, sessionId: string, lockOpts: KVPair) = task {        
+        lockOpts.Session <- sessionId 
+        let! isLockReleased = c.KV.Release(lockOpts)            
+        return isLockReleased.Response
+    }             
+    
+    let tryAcquireLock (c: ConsulClient, sessionId: string, lockOpts: KVPair, ct: CancellationToken) = task {
+        lockOpts.Session <- sessionId
+        let! isLockHeld = c.KV.Acquire(lockOpts, ct)
+        return isLockHeld.Response            
+    }
+    
     let mutable isWorking = false
-    let mutable currentLock = Option<IDistributedLock>.None
-    let lockOptions   = config.LockOptions
-    let leaderChanged = Event<ElectionArgs>()
-    let tryLockTimer  = new Timer(TimeSpan.FromSeconds(1.0).TotalMilliseconds)
-
-    let runLockFlow (shouldTriggerEvent: bool) = task {
-        isWorking <- true
-
-        let tryCreateAndAcquireLock () = config.Client.AcquireLock(lockOptions)
-
-        let tryAcquireLock (lock: IDistributedLock) = task {
-            let! canclToken = lock.Acquire()
-            return ()
-        }
-
-        let checkIfLeaderChanged (lock: IDistributedLock, shouldTrigger) =
-            if lock.IsHeld <> isLeader then 
-                isLeader <- lock.IsHeld
-                if shouldTrigger then leaderChanged.Trigger({ IsLeader = isLeader })
+    let mutable currentIsLockHeldStatus = false
+    let mutable currentSession = None
         
-        let handleException (ex: Exception) =
-            match ex with            
-            | :? LockMaxAttemptsReachedException -> () // this is expected for (LockTryOnce == true) if it couldn't acquire the lock within first attempts.                       
-            | :? AggregateException as agex -> 
-                match agex.InnerException with
-                | :? LockMaxAttemptsReachedException -> ()                
-                | ex -> ex.ToString() |> System.Diagnostics.Trace.TraceError            
-            | ex -> ex.ToString() |> System.Diagnostics.Trace.TraceError
-
+    let leaderChanged = Event<ElectionArgs>()
+    let tryLockTimer  = new System.Timers.Timer(config.TryAcquireLockInterval.TotalMilliseconds)
+    let cancelationTokenSrc = new CancellationTokenSource()
+    
+    let checkIfLeaderChanged (newIsLockHeldStatus: bool, shouldTrigger: bool) =
+        if currentIsLockHeldStatus <> newIsLockHeldStatus then
+            sprintf "IsLockHeld status changed to  %b" newIsLockHeldStatus |>  System.Diagnostics.Trace.TraceInformation
+            if shouldTrigger then
+                leaderChanged.Trigger({ IsLeader = newIsLockHeldStatus })
+    
+    let runLockFlow (shouldTriggerEvent: bool) = task {
+        isWorking <- true                        
         try
             try
-                match currentLock with
-                | Some lock -> if lock.IsHeld <> true 
-                               then do! tryAcquireLock(lock)
-
-                | None      -> let! lock = tryCreateAndAcquireLock()
-                               currentLock <- Option.ofObj(lock)
+                if(currentSession.IsNone || currentSession.Value.RenewalWorker.IsCompleted) then
+                    // Should initialize a session on the first run or crash                   
+                    let! s = Session.Create(config.Client, config.SessionOptions, cancelationTokenSrc.Token)
+                    sprintf "Initialized new session with id %s" s.SessionId |>  System.Diagnostics.Trace.TraceInformation
+                    currentSession <- Some(s)
+                   
+                let! newIsLockHeldStatus = tryAcquireLock(config.Client, currentSession.Value.SessionId, config.LockOptions, cancelationTokenSrc.Token)
+                // if leader changed we need to trigger event
+                checkIfLeaderChanged(newIsLockHeldStatus,  shouldTriggerEvent)
+                currentIsLockHeldStatus <- newIsLockHeldStatus
             with
-            | ex -> handleException(ex)
-        
-            // if leader changed we need to trigger event
-            if currentLock.IsSome then
-                checkIfLeaderChanged(currentLock.Value, shouldTriggerEvent)
+            | ex -> ex.ToString() |> System.Diagnostics.Trace.TraceError
+                    
         finally
             isWorking <- false
     }
@@ -80,19 +104,26 @@ type LeaderElectionMonitor(config) =
 
     [<CLIEvent>]
     member x.LeaderChanged = leaderChanged.Publish    
-    member x.IsLeader = isLeader
+    
+    member x.IsLeader = currentIsLockHeldStatus
 
     member x.Start() = task {
         if not tryLockTimer.Enabled then                 
             let! lockResult = runLockFlow(false)
-            tryLockTimer.Start()          
+            tryLockTimer.Start()
     }
 
-    member x.Stop() =
+    member x.Stop() = task {
         try
             tryLockTimer.Stop()
-            if currentLock.IsSome 
-            then currentLock.Value.Release().Wait()
-                 currentLock.Value.Destroy().Wait()                  
+ 
+            match currentSession with
+            | Some s -> let! released = tryReleaseLock(config.Client, s.SessionId, config.LockOptions) // Ensure that we released the lock first
+                        cancelationTokenSrc.Cancel(false)
+                        let! destroyed =  tryDestroySession(config.Client, s.SessionId)
+                        sprintf "LeaderElectionMonitor stopped. lock released : %b, session destroyed: %b" released destroyed |>  System.Diagnostics.Trace.TraceInformation 
+                        ()
+            | _ -> ()
         with
         | ex -> ex.ToString() |> System.Diagnostics.Trace.TraceError
+    }    

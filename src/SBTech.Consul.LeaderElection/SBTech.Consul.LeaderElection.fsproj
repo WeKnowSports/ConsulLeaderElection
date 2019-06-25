@@ -2,6 +2,19 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <PackageId>SBTech.Consul.LeaderElection</PackageId>
+    <Version>0.4.0</Version>
+    <Authors>AntyaDev</Authors>
+    <Company>SBTech</Company>
+    <Product />
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageLicenseUrl>https://github.com/WeKnowSports/ConsulLeaderElection/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/WeKnowSports/ConsulLeaderElection</PackageProjectUrl>
+    <PackageIconUrl>https://avatars3.githubusercontent.com/u/17160784?v=3&amp;amp;amp;s=200</PackageIconUrl>
+    <Description>Simple library(100% written in F#) to use leader election functionality based on Consul.</Description>
+    <Copyright>SBTech Copyright © 2019</Copyright>
+    <PackageTags>consul, leader-election</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>

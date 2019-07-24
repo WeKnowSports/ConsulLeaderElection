@@ -1,5 +1,6 @@
 namespace rec SBTech.Consul.LeaderElection
 
+open Microsoft.Extensions.Logging
 open System
 open System.Threading
 
@@ -31,20 +32,20 @@ type Session = {
     RenewalWorker: Tasks.Task
 } with
   static member internal Create(c: ConsulClient, sessionOptions: SessionEntry,
-                                ct: CancellationToken) = task {
+                                ct: CancellationToken, logger: ILogger) = task {
     let! r = c.Session.Create(sessionOptions, ct)
     let sessionId = r.Response
     let worker = c.Session.RenewPeriodic(sessionOptions.TTL.Value, sessionId, ct)
                           .ContinueWith(fun t -> 
                             if t.IsFaulted then
                                 sprintf "Session autorenewal crashed. %s" (t.Exception.ToString())
-                                |> System.Diagnostics.Trace.TraceError)
+                                |> logger.LogError)
 
     return { SessionId = sessionId; RenewalWorker = worker}
 }
       
       
-type LeaderElectionMonitor(config: ElectionMonitorConfig) =
+type LeaderElectionMonitor(config: ElectionMonitorConfig, logger: ILogger) =
     
     let mutable isWorking = false
     let mutable currentIsLockHeldStatus = false
@@ -74,7 +75,7 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig) =
     let checkIfLeaderChanged (newIsLockHeldStatus: bool, shouldTriggerEvent: bool) =
         if currentIsLockHeldStatus <> newIsLockHeldStatus then
             sprintf "IsLockHeld status changed to  %b" newIsLockHeldStatus
-            |>  System.Diagnostics.Trace.TraceInformation
+            |>  logger.LogInformation
 
             if shouldTriggerEvent then                
                 leaderChanged.Trigger({ IsLeader = newIsLockHeldStatus })
@@ -85,10 +86,10 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig) =
             try
                 if currentSession.IsNone || currentSession.Value.RenewalWorker.IsCompleted then
                     // Should initialize a session on the first run or crash                   
-                    let! s = Session.Create(config.Client, config.SessionOptions, cancelationTokenSrc.Token)
+                    let! s = Session.Create(config.Client, config.SessionOptions, cancelationTokenSrc.Token, logger)
                     
                     sprintf "Initialized new session with id %s" s.SessionId 
-                    |>  System.Diagnostics.Trace.TraceInformation
+                    |> logger.LogInformation
                     
                     currentSession <- Some s
                    
@@ -97,7 +98,7 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig) =
                 checkIfLeaderChanged(newIsLockHeldStatus,  shouldTriggerEvent)
                 currentIsLockHeldStatus <- newIsLockHeldStatus
             with
-            | ex -> ex.ToString() |> System.Diagnostics.Trace.TraceError
+            | ex -> ex.ToString() |> logger.LogError
                     
         finally
             isWorking <- false
@@ -126,8 +127,8 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig) =
                         let! destroyed =  tryDestroySession(config.Client, s.SessionId)
                         
                         sprintf "LeaderElectionMonitor stopped. lock released : %b, session destroyed: %b" released destroyed
-                        |>  System.Diagnostics.Trace.TraceInformation                         
+                        |>  logger.LogInformation                       
             | _ -> ()
         with
-        | ex -> ex.ToString() |> System.Diagnostics.Trace.TraceError
+        | ex -> ex.ToString() |> logger.LogError
     }    

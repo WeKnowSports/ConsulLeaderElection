@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Threading;
 using Consul;
 using SBTech.Consul.LeaderElection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TestNode
 {
@@ -25,8 +27,8 @@ namespace TestNode
 //                //How often to try to acquire a lock
 //                tryAcquireLockInterval: TimeSpan.FromSeconds(1)
 //            );
-
-            var electionMonitor = new LeaderElectionMonitor(config);
+            var logger = new Logger<Program>(new NullLoggerFactory());
+            var electionMonitor = new LeaderElectionMonitor(config, logger);
             electionMonitor.LeaderChanged += (s, e) =>
             {
                 if (e.IsLeader)

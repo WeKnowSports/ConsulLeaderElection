@@ -27,8 +27,8 @@ namespace TestNode
 //                //How often to try to acquire a lock
 //                tryAcquireLockInterval: TimeSpan.FromSeconds(1)
 //            );
-            var logger = new Logger<Program>(new NullLoggerFactory());
-            var electionMonitor = new LeaderElectionMonitor(config, logger);
+
+            var electionMonitor = new LeaderElectionMonitor(config, NullLoggerProvider.Instance.CreateLogger(nameof(LeaderElectionMonitor)));
             electionMonitor.LeaderChanged += (s, e) =>
             {
                 if (e.IsLeader)

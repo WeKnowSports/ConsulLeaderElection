@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Threading;
 using Consul;
 using SBTech.Consul.LeaderElection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TestNode
 {

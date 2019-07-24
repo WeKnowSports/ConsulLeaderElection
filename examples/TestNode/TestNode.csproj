@@ -9,4 +9,8 @@
     <ProjectReference Include="..\..\src\SBTech.Consul.LeaderElection\SBTech.Consul.LeaderElection.fsproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.0.0-preview7.19362.4" />
+  </ItemGroup>
+
 </Project>

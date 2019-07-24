@@ -1,6 +1,7 @@
 namespace rec SBTech.Consul.LeaderElection
 
 open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Logging.Abstractions;
 open System
 open System.Threading
 
@@ -105,6 +106,8 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig, logger: ILogger) =
     }
 
     do tryLockTimer.Elapsed.Add(fun _ -> if not isWorking then runLockFlow(true) |> ignore)
+    
+    new (config: ElectionMonitorConfig) = LeaderElectionMonitor(config, NullLoggerProvider.Instance.CreateLogger("LeaderElectionMonitor"))
 
     [<CLIEvent>]
     member x.LeaderChanged = leaderChanged.Publish    

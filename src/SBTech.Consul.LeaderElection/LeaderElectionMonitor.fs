@@ -1,10 +1,9 @@
 namespace rec SBTech.Consul.LeaderElection
 
-open Microsoft.Extensions.Logging
-open Microsoft.Extensions.Logging.Abstractions;
 open System
 open System.Threading
-
+open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Logging.Abstractions;
 open Consul
 open FSharp.Control.Tasks.V2.ContextInsensitive
 
@@ -43,8 +42,7 @@ type Session = {
                                 |> logger.LogError)
 
     return { SessionId = sessionId; RenewalWorker = worker}
-}
-      
+}     
       
 type LeaderElectionMonitor(config: ElectionMonitorConfig, logger: ILogger) =
     

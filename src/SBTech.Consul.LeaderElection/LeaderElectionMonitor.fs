@@ -25,7 +25,7 @@ type ElectionMonitorConfig = {
         LockOptions    = lockOpts
         TryAcquireLockInterval = TimeSpan.FromSeconds 3.0 }
       
-type ElectionArgs = { IsLeader: bool }
+type ElectionArgs = { IsLeader: bool; LockOptsValue: byte[] }
 
 type Session = {
     SessionId : string;
@@ -48,6 +48,7 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig, logger: ILogger) =
     
     let mutable isWorking = false
     let mutable currentIsLockHeldStatus = false
+    let mutable currentLockOptsValue = [||]
     let mutable currentSession = None
         
     let leaderChanged = Event<ElectionArgs>()
@@ -70,14 +71,19 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig, logger: ILogger) =
         let! isLockHeld = c.KV.Acquire(lockOpts, ct)
         return isLockHeld.Response            
     }
+
+    let tryGetLockOptsValue (c: ConsulClient, lockOpts: KVPair, ct: CancellationToken) = task {
+        let! kv = c.KV.Get(lockOpts.Key, ct)
+        return kv.Response.Value
+    }
     
-    let checkIfLeaderChanged (newIsLockHeldStatus: bool, shouldTriggerEvent: bool) =
-        if currentIsLockHeldStatus <> newIsLockHeldStatus then
+    let checkIfLeaderChanged (newIsLockHeldStatus: bool, newLockOptsValue: byte[], shouldTriggerEvent: bool) =
+        if currentIsLockHeldStatus <> newIsLockHeldStatus || currentLockOptsValue <> newLockOptsValue then
             sprintf "IsLockHeld status changed to  %b" newIsLockHeldStatus
             |>  logger.LogInformation
 
             if shouldTriggerEvent then                
-                leaderChanged.Trigger({ IsLeader = newIsLockHeldStatus })
+                leaderChanged.Trigger({ IsLeader = newIsLockHeldStatus; LockOptsValue = newLockOptsValue })
     
     let runLockFlow (shouldTriggerEvent: bool) = task {
         isWorking <- true                        
@@ -93,9 +99,11 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig, logger: ILogger) =
                     currentSession <- Some s
                    
                 let! newIsLockHeldStatus = tryAcquireLock(config.Client, currentSession.Value.SessionId, config.LockOptions, cancelationTokenSrc.Token)
+                let! newLockOptsValue = tryGetLockOptsValue(config.Client, config.LockOptions, cancelationTokenSrc.Token)
                 // if leader changed we need to trigger event
-                checkIfLeaderChanged(newIsLockHeldStatus,  shouldTriggerEvent)
+                checkIfLeaderChanged(newIsLockHeldStatus, newLockOptsValue, shouldTriggerEvent)
                 currentIsLockHeldStatus <- newIsLockHeldStatus
+                currentLockOptsValue <- newLockOptsValue
             with
             | ex -> ex.ToString() |> logger.LogError
                     
@@ -111,6 +119,10 @@ type LeaderElectionMonitor(config: ElectionMonitorConfig, logger: ILogger) =
     member x.LeaderChanged = leaderChanged.Publish    
     
     member x.IsLeader = currentIsLockHeldStatus
+
+    member x.GetLockOptsValue() = task {
+        return! tryGetLockOptsValue(config.Client, config.LockOptions, cancelationTokenSrc.Token)
+    }
 
     member x.Start() = task {
         if not tryLockTimer.Enabled then                 
